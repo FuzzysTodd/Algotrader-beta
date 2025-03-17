@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-800 text-green-400 font-mono;
+  }
+}
+
+@layer components {
+  .retro-button {
+    @apply px-4 py-2 bg-gray-700 border-2 border-t-gray-500 border-l-gray-500 border-r-gray-900 border-b-gray-900 text-green-400 hover:bg-gray-600 active:border-t-gray-900 active:border-l-gray-900 active:border-r-gray-500 active:border-b-gray-500;
+  }
+
+  .retro-panel {
+    @apply bg-gray-700 border-2 border-t-gray-500 border-l-gray-500 border-r-gray-900 border-b-gray-900 p-4;
+  }
+
+  .retro-input {
+    @apply bg-gray-800 border-2 border-t-gray-900 border-l-gray-900 border-r-gray-500 border-b-gray-500 px-3 py-2 text-green-400 focus:outline-none focus:ring-1 focus:ring-green-400;
+  }
+
+  .retro-select {
+    @apply retro-input appearance-none pr-8;
+  }
+}
