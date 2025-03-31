@@ -1,9 +1,12 @@
-## Compile the c++ code.
-g++ -shared -o ForexDataBridge.dll ForexDataBridge.cpp -lws2_32 -lbcrypt
-------------------------------------------------------------------------
+# Compile the C++ Code
 
-## MT5 Websocket connection steps:
-------------------------------------------------------------------------
+To compile the C++ code into a DLL, use the following command:
+
+```bash
+g++ -shared -o bridge.dll bridge.cpp -lws2_32 -static-libgcc -static-libstdc++
+```
+
+## MT5 Websocket connection steps
 
 🏗️ 1. Place the DLL in the correct directory: MetaTrader 5 > MQL5 > Libraries
 📋 2. Create an MQL5 Expert Advisor: MetaTrader 5 > Tools > MetaQuotes Language Editor > Give it a name like `ForexDataBridgeEA`

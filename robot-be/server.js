@@ -1,37 +1,60 @@
-// Import WebSocket library
-const WebSocket = require('ws');
+const net = require("net");
+const express = require("express");
+const app = express();
+app.use(express.json());
+const port = 3000;
 
-// Create a WebSocket server on port 8080
-const wss = new WebSocket.Server({ port: 8080 });
+// TCP Client Configuration
+const TCP_HOST = "127.0.0.1";
+const TCP_PORT = 5050;
+let client = null;
 
-console.log("WebSocket server is running on ws://localhost:8080");
+// Create a persistent connection to the DLL
+function connectToDLL() {
+  client = new net.Socket();
+  client.connect(TCP_PORT, TCP_HOST, () => {
+    console.log(`✅ Connected to DLL on ${TCP_HOST}:${TCP_PORT}`);
+  });
 
-// Handle connection event
-wss.on('connection', (ws) => {
-  console.log('MetaTrader connected');
-
-  // Handle incoming messages
-  ws.on('message', (message) => {
-    try {
-      const data = message.toString();
-      console.log('Received Data:', data);
-
-      // Validate data format
-      const parts = data.split(',');
-      if (parts.length !== 3) throw new Error("Invalid data format");
-
-      const [pair, bid, ask] = parts;
-      if (isNaN(bid) || isNaN(ask)) throw new Error("Bid/Ask should be numbers");
-
-      console.log(`Pair: ${pair} | Bid: ${bid} | Ask: ${ask}`);
-    } catch (error) {
-      console.error("Error processing message:", error.message);
+  // Handle responses from DLL
+  client.on("data", (data) => {
+    const message = data.toString();
+    // Ignore [Node] messages to prevent loops
+    if (!message.startsWith("[Node]")) {
+      console.log("⬅️ Response from DLL:", message);
     }
   });
 
-  ws.on('error', (err) => console.error("WebSocket error:", err.message));
-  ws.on('close', () => console.log('MetaTrader disconnected'));
+  client.on("close", () => {
+    console.log("🔌 Connection closed. Reconnecting...");
+    setTimeout(connectToDLL, 1000); // Auto-reconnect
+  });
+
+  client.on("error", (err) => console.error("❌ TCP Error:", err.message));
+}
+
+// Send message to DLL (tag with [Node])
+function sendMessageToDLL(message) {
+  if (client && !client.destroyed) {
+    const taggedMessage = `[Node] ${message}`;
+    client.write(taggedMessage);
+    console.log(`➡️ Sent: ${taggedMessage}`);
+  } else {
+    console.error("❌ DLL connection not established!");
+  }
+}
+
+// Express API for sending messages
+app.post("/send", (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: "Message is required" });
+
+  sendMessageToDLL(message);
+  res.json({ success: true, message: `Sent: [Node] ${message}` });
 });
 
-// Handle server errors
-wss.on('error', (err) => console.error("WebSocket Server Error:", err.message));
+// Start Express and connect to DLL
+app.listen(port, () => {
+  console.log(`🚀 API running at http://localhost:${port}`);
+  connectToDLL();
+});
