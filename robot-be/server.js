@@ -34,11 +34,11 @@ function connectToDLL() {
   client.on("error", (err) => console.error(`❌ [Node.js] TCP Error: ${err.message}`));
 }
 
-// Send message to DLL
-function sendMessageToDLL(message) {
+// Send JSON message to DLL
+function sendMessageToDLL(jsonObject) {
   if (client && !client.destroyed) {
-    const taggedMessage = `[Node] ${message}`;
-    client.write(taggedMessage);
+    const message = JSON.stringify(jsonObject);
+    client.write(message);
     console.log(`➡️ [Node.js] Sent to DLL: ${message}`);
   } else {
     console.error("❌ [Node.js] DLL connection not established!");
@@ -52,7 +52,7 @@ app.post("/send", (req, res) => {
 
   if (!activeSymbols.has(symbol)) {
     activeSymbols.add(symbol);
-    sendMessageToDLL(`SUBSCRIBE ${symbol}`);
+    sendMessageToDLL({ action: "SUBSCRIBE", symbol });
     console.log(`📩 [Node.js] Subscription requested: ${symbol}`);
     res.json({ success: true, message: `Subscribed to ${symbol}` });
   } else {
@@ -67,7 +67,7 @@ app.post("/stop", (req, res) => {
 
   if (activeSymbols.has(symbol)) {
     activeSymbols.delete(symbol);
-    sendMessageToDLL(`UNSUBSCRIBE ${symbol}`);
+    sendMessageToDLL({ action: "UNSUBSCRIBE", symbol });
     console.log(`📤 [Node.js] Unsubscription requested: ${symbol}`);
     res.json({ success: true, message: `Unsubscribed from ${symbol}` });
   } else {

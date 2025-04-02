@@ -26,15 +26,18 @@ void LogMessage(const std::string &message)
     logFile.flush();
 }
 
-// Convert ANSI to UTF-16 for MQL5
-std::wstring ANSItoUnicode(const std::string &ansiStr)
+// Extract JSON values manually
+std::string ExtractJsonValue(const std::string &json, const std::string &key)
 {
-    int len = MultiByteToWideChar(CP_ACP, 0, ansiStr.c_str(), -1, NULL, 0);
-    if (len == 0)
-        return L"";
-    std::wstring unicodeStr(len, 0);
-    MultiByteToWideChar(CP_ACP, 0, ansiStr.c_str(), -1, &unicodeStr[0], len);
-    return unicodeStr;
+    std::string searchKey = "\"" + key + "\":\"";
+    size_t start = json.find(searchKey);
+    if (start == std::string::npos)
+        return "";
+    start += searchKey.length();
+    size_t end = json.find("\"", start);
+    if (end == std::string::npos)
+        return "";
+    return json.substr(start, end - start);
 }
 
 // Persistent TCP Server function (runs in a thread)
@@ -58,7 +61,6 @@ void TCPServer()
         return;
     }
 
-    // Bind
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(PORT);
     serverAddr.sin_addr.s_addr = INADDR_ANY;
@@ -71,7 +73,6 @@ void TCPServer()
         return;
     }
 
-    // Listen
     if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR)
     {
         LogMessage("[DLL] Listen failed!");
@@ -103,49 +104,28 @@ void TCPServer()
             std::string receivedMessage = buffer;
             LogMessage("[DLL] Received: " + receivedMessage);
 
-            // Handle subscription
-            size_t subscribePos = receivedMessage.find("SUBSCRIBE ");
-            size_t unsubscribePos = receivedMessage.find("UNSUBSCRIBE ");
+            // Extract JSON values
+            std::string action = ExtractJsonValue(receivedMessage, "action");
+            std::string symbol = ExtractJsonValue(receivedMessage, "symbol");
 
             std::lock_guard<std::mutex> lock(messageMutex);
 
-            if (subscribePos != std::string::npos)
+            if (action == "SUBSCRIBE")
             {
-                std::string symbol = receivedMessage.substr(subscribePos + 10);
-                symbol.erase(0, symbol.find_first_not_of(" \t\n\r"));
-                symbol.erase(symbol.find_last_not_of(" \t\n\r") + 1);
-
                 subscribedSymbols[symbol] = true;
-
                 LogMessage("[DLL] Subscribed to: " + symbol);
             }
-            else if (unsubscribePos != std::string::npos)
+            else if (action == "UNSUBSCRIBE")
             {
-                std::string symbol = receivedMessage.substr(unsubscribePos + 12);
-                symbol.erase(0, symbol.find_first_not_of(" \t\n\r"));
-                symbol.erase(symbol.find_last_not_of(" \t\n\r") + 1);
-
-                LogMessage("[DLL] Unsubscribe Request for: [" + symbol + "]");
-
-                std::lock_guard<std::mutex> lock(messageMutex);
                 if (subscribedSymbols.count(symbol))
                 {
-                    LogMessage("[DLL] Removing symbol from subscriptions: " + symbol);
                     subscribedSymbols.erase(symbol);
-                    LogMessage("[DLL] Successfully removed: " + symbol);
+                    LogMessage("[DLL] Unsubscribed from: " + symbol);
                 }
                 else
                 {
                     LogMessage("[DLL] Warning: Tried to unsubscribe non-existent symbol: " + symbol);
                 }
-
-                // Log updated subscription list
-                std::string activeSymbols;
-                for (const auto &pair : subscribedSymbols)
-                {
-                    activeSymbols += pair.first + ";";
-                }
-                LogMessage("[DLL] Updated Active Symbols Sent to MQL5: " + activeSymbols);
             }
 
             // Log active symbols
@@ -156,8 +136,8 @@ void TCPServer()
             }
             LogMessage("[DLL] Active Symbols Sent to MQL5: " + activeSymbols);
 
-            // Respond back to Node.js
-            std::string response = "[MQL] Processed: " + receivedMessage;
+            // Respond to Node.js
+            std::string response = "{\"status\":\"processed\",\"symbol\":\"" + symbol + "\",\"action\":\"" + action + "\"}";
             send(clientSocket, response.c_str(), response.size(), 0);
             LogMessage("[DLL] Sent to Node: " + response);
         }
@@ -218,7 +198,7 @@ extern "C" __declspec(dllexport) const wchar_t *GetLatestMessage()
         latestUpdates = "NONE"; // Prevent MQL5 from processing empty string
     }
 
-    std::wstring unicodeMessage = ANSItoUnicode(latestUpdates);
+    std::wstring unicodeMessage = std::wstring(latestUpdates.begin(), latestUpdates.end());
     wcsncpy(buffer, unicodeMessage.c_str(), sizeof(buffer) / sizeof(buffer[0]) - 1);
     buffer[sizeof(buffer) / sizeof(buffer[0]) - 1] = L'\0';
 
