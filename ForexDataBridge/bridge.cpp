@@ -5,13 +5,14 @@
 #include <mutex>
 #include <fstream>
 #include <thread>
+#include <unordered_map>
 
 #pragma comment(lib, "ws2_32.lib")
 
 #define PORT 5050
 
 std::mutex messageMutex;
-std::string latestMessage = "";
+std::unordered_map<std::string, bool> subscribedSymbols; // Tracks active subscriptions
 SOCKET clientSocket = INVALID_SOCKET;
 bool serverRunning = false;
 
@@ -99,12 +100,64 @@ void TCPServer()
         if (bytesReceived > 0)
         {
             buffer[bytesReceived] = '\0';
+            std::string receivedMessage = buffer;
+            LogMessage("[DLL] Received: " + receivedMessage);
+
+            // Handle subscription
+            size_t subscribePos = receivedMessage.find("SUBSCRIBE ");
+            size_t unsubscribePos = receivedMessage.find("UNSUBSCRIBE ");
+
             std::lock_guard<std::mutex> lock(messageMutex);
-            latestMessage = buffer;
-            LogMessage("[DLL] Received: " + latestMessage);
+
+            if (subscribePos != std::string::npos)
+            {
+                std::string symbol = receivedMessage.substr(subscribePos + 10);
+                symbol.erase(0, symbol.find_first_not_of(" \t\n\r"));
+                symbol.erase(symbol.find_last_not_of(" \t\n\r") + 1);
+
+                subscribedSymbols[symbol] = true;
+
+                LogMessage("[DLL] Subscribed to: " + symbol);
+            }
+            else if (unsubscribePos != std::string::npos)
+            {
+                std::string symbol = receivedMessage.substr(unsubscribePos + 12);
+                symbol.erase(0, symbol.find_first_not_of(" \t\n\r"));
+                symbol.erase(symbol.find_last_not_of(" \t\n\r") + 1);
+
+                LogMessage("[DLL] Unsubscribe Request for: [" + symbol + "]");
+
+                std::lock_guard<std::mutex> lock(messageMutex);
+                if (subscribedSymbols.count(symbol))
+                {
+                    LogMessage("[DLL] Removing symbol from subscriptions: " + symbol);
+                    subscribedSymbols.erase(symbol);
+                    LogMessage("[DLL] Successfully removed: " + symbol);
+                }
+                else
+                {
+                    LogMessage("[DLL] Warning: Tried to unsubscribe non-existent symbol: " + symbol);
+                }
+
+                // Log updated subscription list
+                std::string activeSymbols;
+                for (const auto &pair : subscribedSymbols)
+                {
+                    activeSymbols += pair.first + ";";
+                }
+                LogMessage("[DLL] Updated Active Symbols Sent to MQL5: " + activeSymbols);
+            }
+
+            // Log active symbols
+            std::string activeSymbols;
+            for (const auto &pair : subscribedSymbols)
+            {
+                activeSymbols += pair.first + ";";
+            }
+            LogMessage("[DLL] Active Symbols Sent to MQL5: " + activeSymbols);
 
             // Respond back to Node.js
-            std::string response = "[MQL] Processed: " + latestMessage;
+            std::string response = "[MQL] Processed: " + receivedMessage;
             send(clientSocket, response.c_str(), response.size(), 0);
             LogMessage("[DLL] Sent to Node: " + response);
         }
@@ -148,14 +201,28 @@ extern "C" __declspec(dllexport) int StopTCPServer()
     return 0;
 }
 
-// Get the latest message (called from MQL5)
+// Get the latest subscribed symbols (called from MQL5)
 extern "C" __declspec(dllexport) const wchar_t *GetLatestMessage()
 {
     static wchar_t buffer[1024];
     std::lock_guard<std::mutex> lock(messageMutex);
-    std::wstring unicodeMessage = ANSItoUnicode(latestMessage);
+
+    std::string latestUpdates;
+    for (const auto &pair : subscribedSymbols)
+    {
+        latestUpdates += pair.first + ";";
+    }
+
+    if (latestUpdates.empty())
+    {
+        latestUpdates = "NONE"; // Prevent MQL5 from processing empty string
+    }
+
+    std::wstring unicodeMessage = ANSItoUnicode(latestUpdates);
     wcsncpy(buffer, unicodeMessage.c_str(), sizeof(buffer) / sizeof(buffer[0]) - 1);
     buffer[sizeof(buffer) / sizeof(buffer[0]) - 1] = L'\0';
+
+    LogMessage("[DLL] Active Symbols Sent to MQL5: " + latestUpdates);
     return buffer;
 }
 

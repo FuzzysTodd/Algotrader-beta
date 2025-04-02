@@ -9,52 +9,74 @@ const TCP_HOST = "127.0.0.1";
 const TCP_PORT = 5050;
 let client = null;
 
+// Store active symbols being streamed
+const activeSymbols = new Set();
+
 // Create a persistent connection to the DLL
 function connectToDLL() {
   client = new net.Socket();
   client.connect(TCP_PORT, TCP_HOST, () => {
-    console.log(`✅ Connected to DLL on ${TCP_HOST}:${TCP_PORT}`);
+    console.log(`✅ [Node.js] Connected to DLL on ${TCP_HOST}:${TCP_PORT}`);
   });
 
-  // Handle responses from DLL
   client.on("data", (data) => {
-    const message = data.toString();
-    // Ignore [Node] messages to prevent loops
+    const message = data.toString().trim();
     if (!message.startsWith("[Node]")) {
-      console.log("⬅️ Response from DLL:", message);
+      console.log(`⬅️ [Node.js] Received from DLL: ${message}`);
     }
   });
 
   client.on("close", () => {
-    console.log("🔌 Connection closed. Reconnecting...");
-    setTimeout(connectToDLL, 1000); // Auto-reconnect
+    console.log("🔌 [Node.js] Connection closed. Reconnecting...");
+    setTimeout(connectToDLL, 1000);
   });
 
-  client.on("error", (err) => console.error("❌ TCP Error:", err.message));
+  client.on("error", (err) => console.error(`❌ [Node.js] TCP Error: ${err.message}`));
 }
 
-// Send message to DLL (tag with [Node])
+// Send message to DLL
 function sendMessageToDLL(message) {
   if (client && !client.destroyed) {
     const taggedMessage = `[Node] ${message}`;
     client.write(taggedMessage);
-    console.log(`➡️ Sent: ${taggedMessage}`);
+    console.log(`➡️ [Node.js] Sent to DLL: ${message}`);
   } else {
-    console.error("❌ DLL connection not established!");
+    console.error("❌ [Node.js] DLL connection not established!");
   }
 }
 
-// Express API for sending messages
+// API to request price streaming for a symbol
 app.post("/send", (req, res) => {
-  const { message } = req.body;
-  if (!message) return res.status(400).json({ error: "Message is required" });
+  const { symbol } = req.body;
+  if (!symbol) return res.status(400).json({ error: "Symbol is required" });
 
-  sendMessageToDLL(message);
-  res.json({ success: true, message: `Sent: [Node] ${message}` });
+  if (!activeSymbols.has(symbol)) {
+    activeSymbols.add(symbol);
+    sendMessageToDLL(`SUBSCRIBE ${symbol}`);
+    console.log(`📩 [Node.js] Subscription requested: ${symbol}`);
+    res.json({ success: true, message: `Subscribed to ${symbol}` });
+  } else {
+    res.json({ success: false, message: `Already subscribed to ${symbol}` });
+  }
+});
+
+// API to stop price streaming for a symbol
+app.post("/stop", (req, res) => {
+  const { symbol } = req.body;
+  if (!symbol) return res.status(400).json({ error: "Symbol is required" });
+
+  if (activeSymbols.has(symbol)) {
+    activeSymbols.delete(symbol);
+    sendMessageToDLL(`UNSUBSCRIBE ${symbol}`);
+    console.log(`📤 [Node.js] Unsubscription requested: ${symbol}`);
+    res.json({ success: true, message: `Unsubscribed from ${symbol}` });
+  } else {
+    res.json({ success: false, message: `Symbol ${symbol} was not subscribed` });
+  }
 });
 
 // Start Express and connect to DLL
 app.listen(port, () => {
-  console.log(`🚀 API running at http://localhost:${port}`);
+  console.log(`🚀 [Node.js] API running at http://localhost:${port}`);
   connectToDLL();
 });
