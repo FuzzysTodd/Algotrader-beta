@@ -22,7 +22,7 @@ function connectToDLL() {
   client.on("data", (data) => {
     const message = data.toString().trim();
     if (!message.startsWith("[Node]")) {
-      console.log(`⬅️ [Node.js] Received from DLL: ${message}`);
+      console.log(`${message}`);
     }
   });
 

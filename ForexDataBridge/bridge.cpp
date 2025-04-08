@@ -213,7 +213,7 @@ extern "C" __declspec(dllexport) int SendMessageToNode(const wchar_t *message)
     std::string ansiMessage(len, 0);
     WideCharToMultiByte(CP_ACP, 0, message, -1, &ansiMessage[0], len, NULL, NULL);
 
-    std::string taggedMessage = "[MQL] " + ansiMessage;
+    std::string taggedMessage = ansiMessage;
 
     if (clientSocket != INVALID_SOCKET)
     {
