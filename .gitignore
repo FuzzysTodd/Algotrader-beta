@@ -1,3 +1,6 @@
 /robot-be/node_modules/
 /robot-fe/node_modules/
 node_modules/
+/be-forex-algo-backend-apis/node_modules/
+/be-forex-algo-backend-apis/logs/
+/be-forex-algo-backend-apis/package-lock.json

@@ -95,6 +95,7 @@ void TCPServer()
     LogMessage("[DLL] Client Connected.");
 
     char buffer[1024];
+    memset(buffer, 0, sizeof(buffer));
     while (serverRunning)
     {
         int bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
@@ -138,7 +139,9 @@ void TCPServer()
 
             // Respond to Node.js
             std::string response = "{\"status\":\"processed\",\"symbol\":\"" + symbol + "\",\"action\":\"" + action + "\"}";
-            send(clientSocket, response.c_str(), response.size(), 0);
+            std::string messageWithDelimiter = response + "\n";
+            send(clientSocket, messageWithDelimiter.c_str(), messageWithDelimiter.size(), 0);
+
             LogMessage("[DLL] Sent to Node: " + response);
         }
         else if (bytesReceived == 0)
@@ -213,7 +216,7 @@ extern "C" __declspec(dllexport) int SendMessageToNode(const wchar_t *message)
     std::string ansiMessage(len, 0);
     WideCharToMultiByte(CP_ACP, 0, message, -1, &ansiMessage[0], len, NULL, NULL);
 
-    std::string taggedMessage = ansiMessage;
+    std::string taggedMessage = ansiMessage + "\n";
 
     if (clientSocket != INVALID_SOCKET)
     {
