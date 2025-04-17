@@ -15,6 +15,7 @@ std::mutex messageMutex;
 std::unordered_map<std::string, bool> subscribedSymbols; // Tracks active subscriptions
 SOCKET clientSocket = INVALID_SOCKET;
 bool serverRunning = false;
+std::string latestJsonFromNode = ""; // New: stores latest JSON message
 
 // Open log file once at startup
 std::ofstream logFile("C:\\Users\\upram\\OneDrive\\Desktop\\workspace\\Forex-Robot\\ForexDataBridge\\bridge.txt", std::ios::app);
@@ -105,11 +106,13 @@ void TCPServer()
             std::string receivedMessage = buffer;
             LogMessage("[DLL] Received: " + receivedMessage);
 
-            // Extract JSON values
             std::string action = ExtractJsonValue(receivedMessage, "action");
             std::string symbol = ExtractJsonValue(receivedMessage, "symbol");
 
             std::lock_guard<std::mutex> lock(messageMutex);
+
+            // Store full JSON message for MQL5
+            latestJsonFromNode = receivedMessage;
 
             if (action == "SUBSCRIBE")
             {
@@ -229,4 +232,17 @@ extern "C" __declspec(dllexport) int SendMessageToNode(const wchar_t *message)
         LogMessage("[DLL] No active connection to Node.js!");
         return -1;
     }
+}
+
+// New: Get latest JSON from Node.js (called from MQL5)
+extern "C" __declspec(dllexport) const wchar_t *GetJsonFromNode()
+{
+    static wchar_t buffer[2048];
+    std::lock_guard<std::mutex> lock(messageMutex);
+
+    std::wstring unicodeMessage = std::wstring(latestJsonFromNode.begin(), latestJsonFromNode.end());
+    wcsncpy(buffer, unicodeMessage.c_str(), sizeof(buffer) / sizeof(buffer[0]) - 1);
+    buffer[sizeof(buffer) / sizeof(buffer[0]) - 1] = L'\0';
+
+    return buffer;
 }

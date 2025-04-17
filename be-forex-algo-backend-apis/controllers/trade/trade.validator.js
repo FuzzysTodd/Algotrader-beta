@@ -8,6 +8,8 @@ module.exports = {
     Trade: validator({
         body: Joi.object({
             symbol: Joi.string().required(),
+            GAP: Joi.number().required(),
+            ECLIPSE_BUFFER: Joi.number().required(),
         }),
     }),
 
