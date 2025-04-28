@@ -10,6 +10,7 @@ module.exports = {
             symbol: Joi.string().required(),
             GAP: Joi.number().required(),
             ECLIPSE_BUFFER: Joi.number().required(),
+            volume: Joi.number().required(),
         }),
     }),
 

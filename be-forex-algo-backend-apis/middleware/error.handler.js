@@ -13,6 +13,7 @@ const { response, logger } = require('../helpers');
 const { MESSAGE } = require('../helpers/constant.helper');
 
 module.exports = async (error, req, res, next) => {
+    console.log('🚀 ~ module.exports= ~ error:', error);
     if (error instanceof JsonWebTokenError || error instanceof NotBeforeError || error instanceof TokenExpiredError)
         response.UNAUTHORIZED({
             res,

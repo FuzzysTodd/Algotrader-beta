@@ -123,7 +123,7 @@ void TCPServer()
             {
                 if (subscribedSymbols.count(symbol))
                 {
-                    subscribedSymbols.erase(symbol);
+                    subscribedSymbols[symbol] = false;
                     LogMessage("[DLL] Unsubscribed from: " + symbol);
                 }
                 else
